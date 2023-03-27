@@ -102,4 +102,12 @@ class BigramLanguageModel(nn.Module):
             loss = F.cross_entropy(logits, targets)
         
         return logits, loss
-
+    
+    def generate(self, idx, max_new_tokens:int):
+        """
+        idx is (B, T) array of indices in the current context
+        """
+        for _ in range(max_new_tokens):
+            # get predictions
+            logits, loss = self(idx, targets=None)
+            
