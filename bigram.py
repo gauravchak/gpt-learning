@@ -97,8 +97,8 @@ class BigramLanguageModel(nn.Module):
             loss = None
         else:
             B, T, E = logits.shape
-            logits = logits.view(B*T, E)
-            targets = targets.view(B*T)
+            logits = logits.view(B*T, E) # preserve channel dimension but stretch others.
+            targets = targets.view(B*T) # one dimensional. alternatively -1
             loss = F.cross_entropy(logits, targets)
         
         return logits, loss
