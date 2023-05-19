@@ -91,7 +91,37 @@ class TwoTowerModel(nn.Module):
         total_loss = self._compute_losses(mult_user_embedding, item_embedding, sampled_negative_item_embeddings, loss_configs)
         return mult_user_embedding, item_embedding, total_loss
 
+    def _softmax_loss(self, mu, pi, ni):
+        """
+        Given mu [B, D, T]
+        pi [B, D]
+        ni [B, D, SN]
+        concatentate pi to ni to produce [B, D, SN+1]
+        then compute dots of mu with each item [B, T, SN+1]
+        then compute softmax weighted sum of these dots : [B, SN+1]
+        and finally compute softmax probabilities on these : [B, SN+1]
+        """
+        # Concatenate pi and ni along the last dimension to produce [B, D, SN+1]
+        pi_ni = torch.cat([pi.unsqueeze(-1), ni], dim=-1)
+
+        # Compute dots of mu with each item in pi_ni. This results in a tensor of shape [B, T, SN+1]
+        dots = torch.bmm(mu.permute(0, 2, 1), pi_ni)  # shape: [B, T, SN+1]
+
+        # Compute softmax weighted sum of dots. This results in a tensor of shape [B, SN+1]
+        weighted_sum = torch.sum(dots * torch.softmax(dots, dim=1), dim=1)
+
+        # Finally, compute softmax probabilities on the weighted sums. This results in a tensor of shape [B, SN+1]
+        probs = torch.softmax(weighted_sum, dim=-1)
+        # Compute softmax loss againt corrected logits : [B, SN+1]
+        pass
+        
     def _compute_losses(self, mult_user_embedding, item_embedding, sampled_negative_item_embeddings, loss_configs):
+        """
+        Args:
+            mult_user_embedding [B, T, D]
+            item_embedding [B, D]
+            sampled_negative_item_embeddings [B, SN, D]
+        """
         total_loss = 0
         
         for config in loss_configs:
@@ -113,6 +143,6 @@ class TwoTowerModel(nn.Module):
 
         # Compute logit
         logit = (probs * dots).sum(dim=1)  # shape: [B]
-        total_loss += wt_TTSN * TTSN_loss(logit)
+        total_loss += wt_TTSN * _softmax_loss(mult_user_e_reshaped, item_e_reshaped, sampled_negative_item_embeddings.permute(0, 2, 1)
         total_loss += wt_Pass1 * Pass1_loss(mult_user_e_reshaped, item_e_reshaped)
         return total_loss
