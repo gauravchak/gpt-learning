@@ -1,7 +1,8 @@
 class TwoTowerModel(nn.Module):
     """
     Depends on:
-      - UserHistoryEncoder
+      - UserHistoryEncoder : examples of this are sum pooling, weighted sum pooling where wt is a function of 
+        position and timegap.
     """
     def __init__(self, D_u, D_i, D_s, D_d, N_very_recent, N_medium_term, N_long_term, num_user_towers, num_item_towers):
         """
