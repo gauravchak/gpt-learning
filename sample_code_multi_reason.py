@@ -81,24 +81,25 @@ class TwoTowerModel(nn.Module):
         item_features = torch.cat([item_id, item_dense], dim=-1)
         # Create mult_item_embedding [B, num_item_towers, D_i]
         mult_item_embedding = self.MLP_item(item_features).view(B, self.num_item_towers, -1)
+        item_embedding = torch.sum(mult_item_embedding, dim=1)  # [B, D_i]
 
         # Compute losses
         # 1, -4, Softmax ... V2V short term
         # 1, -3, Softmax ... V2V medium term
         # 1, -2, Softmax ... V2V long term
         # 1, -2, Softmax ... V2V long term
-        total_loss = self._compute_losses(mult_user_embedding, mult_item_embedding, loss_configs)
-        return mult_user_embedding, mult_item_embedding, total_loss
+        total_loss = self._compute_losses(mult_user_embedding, item_embedding, sampled_negative_item_embeddings, loss_configs)
+        return mult_user_embedding, item_embedding, total_loss
 
-    def _compute_losses(self, mult_user_embedding, mult_item_embedding, loss_configs):
+    def _compute_losses(self, mult_user_embedding, item_embedding, sampled_negative_item_embeddings, loss_configs):
         total_loss = 0
-        item_embedding = torch.sum(mult_item_embedding, dim=1)  # [B, D_i]
+        
         for config in loss_configs:
             # config.u_idx which user tower to use
             # config.loss_func how to compute loss of that logit.
             # config.wt input weight of that loss. P1: Use learnable loss weights on top of this.
             user_embedding = mult_user_embedding[:, config.u_idx, :]  # [B, D_i]
-            loss = config.loss_func(user_embedding, item_embedding)  # [B]
+            loss = config.loss_func(user_embedding, item_embedding, sampled_negative_item_embeddings)  # [B]
             total_loss += config.wt * loss
         # Reshape tensors for batch matrix multiplication
         item_e_reshaped = item_embedding.unsqueeze(2)  # shape: [B, D, 1]
@@ -113,4 +114,5 @@ class TwoTowerModel(nn.Module):
         # Compute logit
         logit = (probs * dots).sum(dim=1)  # shape: [B]
         total_loss += wt_TTSN * TTSN_loss(logit)
+        total_loss += wt_Pass1 * Pass1_loss(mult_user_e_reshaped, item_e_reshaped)
         return total_loss
